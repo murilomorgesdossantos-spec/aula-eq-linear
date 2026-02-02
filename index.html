@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Desafio das Equações</title>
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600;700&family=Fira+Code:wght@500&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="main-container">
+        <header>
+            <div class="stats-row">
+                <span id="question-count">Carregando...</span>
+                <span id="score-display">Acertos: 0</span>
+            </div>
+            <div class="progress-container">
+                <div class="progress-bar" id="progress-bar"></div>
+            </div>
+        </header>
+
+        <main class="card">
+            <div id="loading-overlay">
+                <div class="spinner"></div>
+                <p>Sincronizando com a planilha...</p>
+            </div>
+
+            <span id="level-badge" class="badge">Nível Iniciante</span>
+            
+            <div class="equation-box">
+                <span id="equation-display">...</span>
+            </div>
+
+            <div class="input-group">
+                <input type="text" id="user-answer" placeholder="Digite o valor de x" autocomplete="off">
+            </div>
+
+            <div class="special-buttons">
+                <button class="btn-special" onclick="insertSpecial('Sem Solução')">Sem Solução</button>
+                <button class="btn-special" onclick="insertSpecial('Infinitas')">Infinitas</button>
+            </div>
+
+            <div class="action-buttons">
+                <button id="skip-btn" class="btn-skip" onclick="skipQuestion()">Pular</button>
+                <button id="action-btn" class="btn-primary">Verificar</button>
+            </div>
+            
+            <div id="feedback-msg" class="feedback"></div>
+        </main>
+        
+        <footer>
+            <button class="btn-reset" onclick="location.reload()">Reiniciar Conexão</button>
+        </footer>
+    </div>
+    <script src="script.js"></script>
+</body>
+</html>
