@@ -118,8 +118,10 @@ let availableQuestions = [];
 let currentQuestionIndex = 0;
 let score = 0;
 
-// Lista para guardar as tentativas do usuário na questão atual
-let userAttemptsLog = []; 
+// Lista de tentativas da pergunta atual
+let userAttemptsLog = [];
+// Estado do botão de pular (false = normal, true = pediu confirmação)
+let skipConfirmState = false;
 
 const dom = {
     eqDisplay: document.getElementById('equation-display'),
@@ -170,7 +172,7 @@ function enviarDados(questao, gabarito, status, tentativasLog) {
         questao: questao, 
         gabarito: gabarito, 
         status: status, 
-        tentativas: tentativasLog // Envia a string formatada "x | y | z"
+        tentativas: tentativasLog
     };
 
     fetch(API_URL, {
@@ -197,7 +199,23 @@ function shuffleArray(array) {
     return array;
 }
 
-// Função auxiliar para mostrar o texto amigável ao aluno
+// --- LÓGICA DE NÚMEROS E FRAÇÕES ---
+// Converte "1/4", "0,25", "0.25" tudo para número decimal (0.25)
+function parseMathInput(input) {
+    if (!input) return NaN;
+    // Troca vírgula por ponto
+    let clean = input.toString().trim().replace(',', '.');
+    
+    // Se tiver barra de fração (/), divide
+    if (clean.includes('/')) {
+        const parts = clean.split('/');
+        if (parts.length === 2) {
+            return parseFloat(parts[0]) / parseFloat(parts[1]);
+        }
+    }
+    return parseFloat(clean);
+}
+
 function formatAnswerText(ans) {
     if (ans === "SI") return "Sem Solução";
     if (ans === "SPI") return "Infinitas Soluções";
@@ -211,33 +229,46 @@ function loadQuestion() {
     }
     const q = availableQuestions[currentQuestionIndex];
     
-    // Reseta o log de tentativas para a nova pergunta
-    userAttemptsLog = []; 
+    // Reseta estados
+    userAttemptsLog = [];
+    skipConfirmState = false; // Reseta o botão de pular
     
     dom.eqDisplay.textContent = q.eq;
     dom.badge.textContent = `Nível: ${q.level}`;
     dom.badge.style.background = getBadgeColor(q.level);
+    
     dom.input.value = ""; dom.input.disabled = false;
     dom.input.classList.remove('input-correct', 'input-error');
     dom.input.focus();
     dom.feedback.textContent = "";
+    
+    // Reseta botões
     dom.actionBtn.textContent = "Verificar";
+    dom.skipBtn.textContent = "Pular";
+    dom.skipBtn.style.backgroundColor = "var(--warning)"; // Cor original
     dom.skipBtn.disabled = false;
+    
     updateStats();
 }
 
 function insertSpecial(value) { dom.input.value = value; dom.input.focus(); }
 
 function skipQuestion() {
-    if(!confirm("Tem certeza que deseja pular?")) return;
+    // Lógica do Botão de Confirmação (Sem janela de alerta)
+    if (!skipConfirmState) {
+        // Primeiro clique: Muda o texto do botão
+        dom.skipBtn.textContent = "Tem certeza?";
+        dom.skipBtn.style.backgroundColor = "#c2410c"; // Cor mais escura/vermelha
+        skipConfirmState = true;
+        return; // Para aqui e espera o segundo clique
+    }
+
+    // Segundo clique: Executa o Pular
     const q = availableQuestions[currentQuestionIndex];
-    
-    // Salva o que ele tentou até agora, ou "Nenhuma" se não digitou nada
     const logFinal = userAttemptsLog.length > 0 ? userAttemptsLog.join(" | ") : "Nenhuma";
     
     enviarDados(q.eq, q.ans, "PULOU", logFinal);
 
-    // Mostra a resposta formatada (Sem Solução em vez de SI)
     const formattedAns = formatAnswerText(q.ans);
     dom.feedback.innerHTML = `<span style="color: var(--warning)">⏭️ Questão Pulada. Resposta era: ${formattedAns}</span>`;
     
@@ -247,23 +278,41 @@ function skipQuestion() {
 
 function checkAnswer() {
     if (dom.input.disabled) return;
-    const q = availableQuestions[currentQuestionIndex];
-    const rawVal = dom.input.value.trim(); // O que o usuário digitou
-    const userVal = rawVal.toLowerCase();
-    const correctVal = q.ans.toLowerCase();
     
-    // Adiciona ao log se não estiver vazio
-    if(rawVal !== "") {
-        userAttemptsLog.push(rawVal);
+    // Se o usuário clicar em verificar, cancela o estado de "confirmar pular"
+    if (skipConfirmState) {
+        skipConfirmState = false;
+        dom.skipBtn.textContent = "Pular";
+        dom.skipBtn.style.backgroundColor = "var(--warning)";
     }
+
+    const q = availableQuestions[currentQuestionIndex];
+    const rawVal = dom.input.value.trim();
+    const userValStr = rawVal.toLowerCase();
+    const correctValStr = q.ans.toLowerCase();
+    
+    if(rawVal !== "") userAttemptsLog.push(rawVal);
 
     let isCorrect = false;
 
-    if (correctVal === "si") { if (userVal.includes("sem") || userVal.includes("impossivel")) isCorrect = true; } 
-    else if (correctVal === "spi") { if (userVal.includes("infinitas") || userVal.includes("identidade")) isCorrect = true; } 
-    else { const numUser = userVal.replace(/[^0-9-]/g, ''); if (numUser === correctVal) isCorrect = true; }
+    // Lógica Especial: SI e SPI
+    if (correctValStr === "si") {
+        if (userValStr.includes("sem") || userValStr.includes("impossivel")) isCorrect = true;
+    } 
+    else if (correctValStr === "spi") {
+        if (userValStr.includes("infinitas") || userValStr.includes("identidade")) isCorrect = true;
+    } 
+    else {
+        // Lógica Numérica (Aceita Fração e Decimal)
+        const valUser = parseMathInput(userValStr);
+        const valCorrect = parseMathInput(correctValStr);
+        
+        // Verifica se ambos são números válidos e se são iguais (com margem de erro pequena)
+        if (!isNaN(valUser) && !isNaN(valCorrect)) {
+            if (Math.abs(valUser - valCorrect) < 0.0001) isCorrect = true;
+        }
+    }
 
-    // Prepara a string para o Excel (ex: "4 | 6 | 7")
     const logString = userAttemptsLog.join(" | ");
 
     if (isCorrect) {
